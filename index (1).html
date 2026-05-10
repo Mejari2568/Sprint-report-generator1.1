@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Report Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #16181c;
+    --surface2: #1e2128;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --accent: #5b8af0;
+    --accent2: #3dffa0;
+    --text: #e8eaf0;
+    --muted: #7a7f8e;
+    --danger: #ff6b6b;
+    --warn: #ffb347;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; line-height: 1.6; min-height: 100vh; }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(91,138,240,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(91,138,240,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .page { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+
+  /* header */
+  .header { margin-bottom: 3rem; }
+  .header-tag { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.75rem; }
+  .header h1 { font-family: var(--font-display); font-size: clamp(2rem,5vw,3rem); font-weight: 300; color: #fff; line-height: 1.1; }
+  .header h1 em { font-style: italic; color: var(--accent2); }
+  .header p { color: var(--muted); margin-top: 0.75rem; font-size: 14px; max-width: 500px; }
+
+  /* steps */
+  .steps { display: flex; gap: 8px; margin-bottom: 2.5rem; flex-wrap: wrap; }
+  .step-dot { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border2); color: var(--muted); transition: all 0.2s; }
+  .step-dot.active { border-color: var(--accent); color: var(--accent); background: rgba(91,138,240,0.08); }
+  .step-dot.done { border-color: var(--accent2); color: var(--accent2); background: rgba(61,255,160,0.06); }
+
+  /* backend url banner */
+  .backend-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 1.5rem;
+  }
+  .backend-bar label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .backend-bar input { flex: 1; background: transparent; border: none; outline: none; font-family: var(--font-mono); font-size: 13px; color: var(--text); padding: 0; }
+  .backend-status { font-size: 11px; font-family: var(--font-mono); white-space: nowrap; }
+  .s-ok  { color: var(--accent2); }
+  .s-err { color: var(--danger); }
+  .s-chk { color: var(--muted); }
+
+  /* upload */
+  .upload-zone { border: 1.5px dashed var(--border2); border-radius: 16px; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+  .upload-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(91,138,240,0.06) 0%, transparent 70%); pointer-events: none; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(91,138,240,0.04); }
+  .upload-icon { width: 56px; height: 56px; border-radius: 14px; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem; font-size: 24px; }
+  .upload-zone h3 { font-weight: 500; font-size: 16px; color: #fff; margin-bottom: 6px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); }
+  .upload-btn { display: inline-block; margin-top: 1rem; padding: 8px 20px; border: 1px solid var(--border2); border-radius: 8px; font-size: 13px; color: var(--text); cursor: pointer; background: var(--surface2); transition: all 0.15s; font-family: var(--font-body); }
+  .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* file pill */
+  .file-pill { display: inline-flex; align-items: center; gap: 8px; background: rgba(61,255,160,0.08); border: 1px solid rgba(61,255,160,0.25); border-radius: 8px; padding: 6px 14px; font-size: 13px; color: var(--accent2); font-family: var(--font-mono); margin-bottom: 1.5rem; }
+
+  /* stats */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 10px; margin: 1.5rem 0; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; text-align: center; }
+  .stat-val { font-family: var(--font-mono); font-size: 26px; color: #fff; }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* table */
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th { background: var(--surface2); padding: 8px 12px; text-align: left; font-weight: 500; color: var(--muted); white-space: nowrap; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface); }
+
+  /* badges */
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; font-family: var(--font-mono); }
+  .b-done { background: rgba(61,255,160,0.12); color: var(--accent2); border: 1px solid rgba(61,255,160,0.2); }
+  .b-prog { background: rgba(91,138,240,0.12); color: var(--accent); border: 1px solid rgba(91,138,240,0.2); }
+  .b-todo { background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--border2); }
+  .b-bug  { background: rgba(255,107,107,0.12); color: var(--danger); border: 1px solid rgba(255,107,107,0.2); }
+
+  /* section label */
+  .section-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 2rem 0 0.75rem; display: flex; align-items: center; gap: 10px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* form */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  @media(max-width:520px) { .field-grid { grid-template-columns: 1fr; } }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+  input, select, textarea { width: 100%; background: var(--surface); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 12px; font-size: 13.5px; color: var(--text); font-family: var(--font-body); outline: none; transition: border-color 0.15s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 70px; }
+
+  /* checkboxes */
+  .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+  @media(max-width:520px) { .check-grid { grid-template-columns: 1fr; } }
+  .check-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; cursor: pointer; font-size: 13px; color: var(--text); transition: border-color 0.15s; }
+  .check-item:hover { border-color: var(--border2); }
+  .check-item input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+  .check-item.checked { border-color: rgba(91,138,240,0.3); background: rgba(91,138,240,0.05); }
+
+  /* buttons */
+  .gen-btn { width: 100%; padding: 14px; margin-top: 1.5rem; background: var(--accent); color: #fff; font-size: 15px; font-weight: 500; font-family: var(--font-body); border: none; border-radius: 10px; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+  .gen-btn:hover { opacity: 0.88; }
+  .gen-btn:active { transform: scale(0.99); }
+  .gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .sec-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--text); }
+
+  /* report */
+  #reportOut { display: none; }
+  .report-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; overflow: hidden; margin-top: 2rem; }
+  .report-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); flex-wrap: wrap; gap: 8px; }
+  .report-toolbar span { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .toolbar-btns { display: flex; gap: 8px; }
+  .tb-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border2); background: transparent; color: var(--text); font-size: 12px; cursor: pointer; font-family: var(--font-body); transition: all 0.15s; }
+  .tb-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tb-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tb-btn.primary:hover { opacity: 0.85; }
+  .report-body { padding: 2rem; }
+
+  /* report html styles */
+  .report-body h1 { font-family: var(--font-display); font-size: 1.9rem; font-weight: 300; color: #fff; margin-bottom: 0.25rem; }
+  .report-body h1 em { font-style: italic; color: var(--accent2); }
+  .report-body h2 { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin: 2rem 0 0.75rem; }
+  .report-body h3 { font-size: 14px; font-weight: 500; color: var(--text); margin: 1rem 0 0.4rem; }
+  .report-body p { color: var(--muted); font-size: 14px; line-height: 1.7; margin-bottom: 0.75rem; }
+  .report-body ul { list-style: none; padding: 0; }
+  .report-body ul li { font-size: 14px; color: var(--muted); padding: 4px 0 4px 1.2rem; position: relative; }
+  .report-body ul li::before { content: '·'; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+  .report-meta { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .report-meta-item .k { font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .report-meta-item .v { color: var(--text); font-weight: 500; }
+  .report-divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
+  .rep-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); gap: 8px; margin: 1rem 0; }
+  .rep-stat { background: var(--surface2); border-radius: 8px; padding: 12px; text-align: center; border: 1px solid var(--border); }
+  .rep-stat .rv { font-family: var(--font-mono); font-size: 22px; color: #fff; }
+  .rep-stat .rl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px; }
+  .rep-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0.75rem 0; }
+  .rep-table th { text-align: left; padding: 7px 10px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; }
+  .rep-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .rep-table tr:last-child td { border-bottom: none; }
+  .highlight-box { background: rgba(91,138,240,0.07); border: 1px solid rgba(91,138,240,0.18); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 14px; color: var(--text); }
+  .warn-box { background: rgba(255,179,71,0.07); border: 1px solid rgba(255,179,71,0.2); border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; font-size: 14px; color: var(--text); }
+
+  /* loading */
+  .loading { text-align: center; padding: 3rem; }
+  .spinner { width: 36px; height: 36px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { color: var(--muted); font-size: 13px; font-family: var(--font-mono); }
+
+  .footer { text-align: center; margin-top: 4rem; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+  @media print {
+    body { background: #fff; color: #111; }
+    body::before, .upload-zone, .steps, .section-label, .gen-btn,
+    .report-toolbar, #configSection, .footer, .backend-bar { display: none !important; }
+    .report-card { border: none; background: transparent; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="header-tag">// scrum master toolkit</div>
+    <h1>Sprint Report <em>Generator</em></h1>
+    <p>Upload your Jira Excel export and generate a professional sprint report in seconds — powered by a secure backend.</p>
+  </div>
+
+  <div class="steps">
+    <div class="step-dot active" id="dot1">01 · upload excel</div>
+    <div class="step-dot" id="dot2">02 · configure</div>
+    <div class="step-dot" id="dot3">03 · generate</div>
+  </div>
+
+  <!-- Backend URL bar -->
+  <div class="backend-bar">
+    <label>Backend URL</label>
+    <input type="text" id="backendUrl" placeholder="https://your-app.onrender.com" oninput="saveBackendUrl()" />
+    <span class="backend-status s-chk" id="backendStatus">not checked</span>
+    <button class="tb-btn" onclick="checkBackend()" style="padding:4px 12px;font-size:12px">ping</button>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">📊</div>
+    <h3>Drop your Jira Excel export here</h3>
+    <p>Supports .xlsx, .xls, .csv — all standard Jira exports</p>
+    <div class="upload-btn">Browse file</div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
+  </div>
+
+  <div id="fileInfo" style="display:none">
+    <div class="file-pill">✓ <span id="fileName"></span></div>
+    <div class="section-label">data preview</div>
+    <div class="table-wrap"><table id="previewTable"></table></div>
+    <div class="stat-grid" id="statGrid"></div>
+  </div>
+
+  <!-- Config -->
+  <div id="configSection">
+    <div class="section-label">sprint details</div>
+    <div class="field-grid">
+      <div><label>Sprint name</label><input type="text" id="m-sprint" placeholder="Sprint 23"></div>
+      <div><label>Dates</label><input type="text" id="m-dates" placeholder="Apr 21 – May 2, 2026"></div>
+    </div>
+    <div class="field-grid">
+      <div><label>Team name</label><input type="text" id="m-team" placeholder="Phoenix Squad"></div>
+      <div><label>Scrum master</label><input type="text" id="m-sm" placeholder="Your name"></div>
+    </div>
+    <div style="margin-bottom:12px"><label>Sprint goal</label><textarea id="m-goal" placeholder="What was this sprint trying to achieve?"></textarea></div>
+
+    <div class="section-label">report sections</div>
+    <div class="check-grid" id="checkGrid">
+      <label class="check-item checked"><input type="checkbox" checked value="executive"> Executive summary</label>
+      <label class="check-item checked"><input type="checkbox" checked value="velocity"> Velocity & points</label>
+      <label class="check-item checked"><input type="checkbox" checked value="assignee"> Work by assignee</label>
+      <label class="check-item checked"><input type="checkbox" checked value="bugs"> Bug analysis</label>
+      <label class="check-item checked"><input type="checkbox" checked value="epics"> Epic breakdown</label>
+      <label class="check-item checked"><input type="checkbox" checked value="incomplete"> Incomplete items</label>
+      <label class="check-item"><input type="checkbox" value="risks"> Risks & blockers</label>
+      <label class="check-item"><input type="checkbox" value="next"> Next sprint recommendations</label>
+    </div>
+
+    <div class="section-label">additional notes</div>
+    <textarea id="m-notes" placeholder="Blockers, wins, shoutouts, or any extra context..."></textarea>
+
+    <button class="gen-btn" id="genBtn" onclick="generateReport()">Generate sprint report →</button>
+  </div>
+
+  <!-- Output -->
+  <div id="reportOut">
+    <div class="report-card">
+      <div class="report-toolbar">
+        <span id="reportLabel">sprint-report.html</span>
+        <div class="toolbar-btns">
+          <button class="tb-btn" onclick="copyReport()">Copy text</button>
+          <button class="tb-btn" onclick="window.print()">Print / PDF</button>
+          <button class="tb-btn primary" onclick="downloadHTML()">Download HTML</button>
+        </div>
+      </div>
+      <div class="report-body" id="reportBody">
+        <div class="loading"><div class="spinner"></div><p>generating with claude...</p></div>
+      </div>
+    </div>
+    <button class="gen-btn sec-btn" style="margin-top:1rem" onclick="resetReport()">← Generate another report</button>
+  </div>
+
+  <div class="footer">sprint-report-generator · flask backend · github pages frontend</div>
+</div>
+
+<script>
+let parsedData = [];
+let detectedCols = {};
+
+// restore saved backend url
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('sprint_backend_url');
+  if (saved) document.getElementById('backendUrl').value = saved;
+
+  document.querySelectorAll('.check-item input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.check-item').classList.toggle('checked', cb.checked));
+  });
+});
+
+function saveBackendUrl() {
+  localStorage.setItem('sprint_backend_url', document.getElementById('backendUrl').value.trim());
+}
+
+async function checkBackend() {
+  const url = document.getElementById('backendUrl').value.trim();
+  const el = document.getElementById('backendStatus');
+  if (!url) { el.textContent = 'enter url first'; el.className = 'backend-status s-err'; return; }
+  el.textContent = 'checking...'; el.className = 'backend-status s-chk';
+  try {
+    const res = await fetch(url.replace(/\/$/, '') + '/');
+    const data = await res.json();
+    if (data.status === 'ok') { el.textContent = '● connected'; el.className = 'backend-status s-ok'; }
+    else { el.textContent = '✕ unexpected response'; el.className = 'backend-status s-err'; }
+  } catch {
+    el.textContent = '✕ unreachable'; el.className = 'backend-status s-err';
+  }
+}
+
+// drag drop
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+const COL_MAP = {
+  summary:  ['summary','title','name','issue name','issue summary'],
+  status:   ['status','state'],
+  type:     ['issue type','type','issuetype'],
+  points:   ['story points','points','sp','story point estimate','story points estimate','estimate'],
+  assignee: ['assignee','assigned to','owner'],
+  epic:     ['epic name','epic link','epic','epic summary'],
+  sprint:   ['sprint'],
+  priority: ['priority'],
+  resolution: ['resolution'],
+};
+
+function detectCols(rows) {
+  if (!rows.length) return;
+  const rawKeys = Object.keys(rows[0]);
+  for (const [field, candidates] of Object.entries(COL_MAP)) {
+    detectedCols[field] = rawKeys.find(k => candidates.includes(k.toLowerCase().trim())) || null;
+  }
+}
+
+function g(row, field) { return detectedCols[field] ? (row[detectedCols[field]] ?? '') : ''; }
+
+function handleFile(file) {
+  if (!file) return;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('reportLabel').textContent = file.name.replace(/\.[^.]+$/, '') + '-report.html';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    parsedData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    detectCols(parsedData);
+    renderPreview();
+    renderStats();
+    autoFill();
+    document.getElementById('fileInfo').style.display = 'block';
+    setStep(1);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function setStep(done) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('dot' + i);
+    el.className = 'step-dot' + (i <= done ? ' done' : '') + (i === done + 1 ? ' active' : '');
+  }
+}
+
+function statusBadge(s) {
+  const sl = (s||'').toLowerCase().trim();
+  if (sl === 'done') return `<span class="badge b-done">Done</span>`;
+  if (sl.includes('progress')) return `<span class="badge b-prog">In Progress</span>`;
+  return `<span class="badge b-todo">${s||'To Do'}</span>`;
+}
+function typeBadge(t) {
+  if ((t||'').toLowerCase() === 'bug') return `<span class="badge b-bug">Bug</span>`;
+  return `<span style="color:var(--muted);font-size:12px">${t||'—'}</span>`;
+}
+
+function renderPreview() {
+  const tbl = document.getElementById('previewTable');
+  tbl.innerHTML = `<thead><tr><th>Summary</th><th>Type</th><th>Status</th><th>Points</th><th>Assignee</th><th>Epic</th></tr></thead>`;
+  const tbody = document.createElement('tbody');
+  parsedData.slice(0, 8).forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td title="${g(row,'summary')}">${(g(row,'summary')||'—').toString().substring(0,42)}</td>
+      <td>${typeBadge(g(row,'type'))}</td>
+      <td>${statusBadge(g(row,'status'))}</td>
+      <td style="text-align:center;font-family:var(--font-mono)">${g(row,'points')||'—'}</td>
+      <td>${(g(row,'assignee')||'—').toString().split(' ')[0]}</td>
+      <td>${(g(row,'epic')||'—').toString().substring(0,22)}</td>`;
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+}
+
+function renderStats() {
+  const total = parsedData.length;
+  const done  = parsedData.filter(r => (g(r,'status')||'').toLowerCase().trim() === 'done').length;
+  const pts   = parsedData.reduce((s,r) => s+(parseFloat(g(r,'points'))||0), 0);
+  const dpts  = parsedData.filter(r => (g(r,'status')||'').toLowerCase().trim() === 'done').reduce((s,r) => s+(parseFloat(g(r,'points'))||0), 0);
+  const bugs  = parsedData.filter(r => (g(r,'type')||'').toLowerCase() === 'bug').length;
+  const pct   = pts ? Math.round(dpts/pts*100) : 0;
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Tickets</div></div>
+    <div class="stat-card"><div class="stat-val">${done}</div><div class="stat-lbl">Completed</div></div>
+    <div class="stat-card"><div class="stat-val">${Math.round(dpts)}/${Math.round(pts)}</div><div class="stat-lbl">Points done</div></div>
+    <div class="stat-card"><div class="stat-val">${pct}%</div><div class="stat-lbl">Completion</div></div>
+    <div class="stat-card"><div class="stat-val">${bugs}</div><div class="stat-lbl">Bugs</div></div>`;
+}
+
+function autoFill() {
+  if (!parsedData.length) return;
+  const spr = g(parsedData[0], 'sprint');
+  if (spr && !document.getElementById('m-sprint').value) document.getElementById('m-sprint').value = spr;
+}
+
+function buildTicketPayload() {
+  return parsedData.map(row => ({
+    summary:  g(row,'summary'),
+    status:   g(row,'status'),
+    type:     g(row,'type'),
+    points:   g(row,'points'),
+    assignee: g(row,'assignee'),
+    epic:     g(row,'epic'),
+    priority: g(row,'priority'),
+    resolution: g(row,'resolution'),
+  }));
+}
+
+function getSections() {
+  return Array.from(document.querySelectorAll('.check-item input:checked')).map(cb => cb.value);
+}
+
+async function generateReport() {
+  const backendUrl = document.getElementById('backendUrl').value.trim().replace(/\/$/, '');
+  if (!backendUrl) { alert('Please enter your backend URL at the top.'); return; }
+
+  setStep(2);
+  document.getElementById('configSection').style.display = 'none';
+  document.getElementById('reportOut').style.display = 'block';
+  document.getElementById('reportBody').innerHTML = `<div class="loading"><div class="spinner"></div><p>sending to backend · generating with claude...</p></div>`;
+
+  const payload = {
+    sprint:        document.getElementById('m-sprint').value || 'Current Sprint',
+    dates:         document.getElementById('m-dates').value,
+    team:          document.getElementById('m-team').value,
+    scrum_master:  document.getElementById('m-sm').value,
+    goal:          document.getElementById('m-goal').value,
+    notes:         document.getElementById('m-notes').value,
+    sections:      getSections(),
+    tickets:       buildTicketPayload(),
+  };
+
+  try {
+    const res = await fetch(`${backendUrl}/generate-report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Unknown error from backend');
+    document.getElementById('reportBody').innerHTML = data.html;
+    setStep(3);
+  } catch (err) {
+    document.getElementById('reportBody').innerHTML = `<div class="warn-box"><strong>Error:</strong> ${err.message}<br><br>Make sure your backend is running and the URL is correct.</div>`;
+    document.getElementById('configSection').style.display = 'block';
+    document.getElementById('reportOut').style.display = 'none';
+    setStep(1);
+  }
+}
+
+function resetReport() {
+  document.getElementById('reportOut').style.display = 'none';
+  document.getElementById('configSection').style.display = 'block';
+  setStep(1);
+}
+
+function copyReport() {
+  navigator.clipboard.writeText(document.getElementById('reportBody').innerText).then(() => alert('Copied!'));
+}
+
+function downloadHTML() {
+  const sprint = document.getElementById('m-sprint').value || 'sprint-report';
+  const body = document.getElementById('reportBody').innerHTML;
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>${sprint} Report</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0f11;color:#e8eaf0;font-family:'DM Sans',sans-serif;padding:3rem 1.5rem}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-family:'Fraunces',serif;font-size:2rem;font-weight:300;color:#fff;margin-bottom:1rem}
+h1 em{font-style:italic;color:#3dffa0}
+h2{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5b8af0;margin:2rem 0 .75rem}
+h3{font-size:14px;font-weight:500;color:#e8eaf0;margin:1rem 0 .4rem}
+p{color:#7a7f8e;font-size:14px;line-height:1.7;margin-bottom:.75rem}
+ul{list-style:none;padding:0}ul li{font-size:14px;color:#7a7f8e;padding:4px 0 4px 1.2rem;position:relative}
+ul li::before{content:'·';position:absolute;left:0;color:#5b8af0;font-weight:700}
+.report-meta{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.report-meta-item .k{font-family:'DM Mono',monospace;font-size:11px;color:#7a7f8e;display:block;margin-bottom:2px}
+.report-meta-item .v{color:#e8eaf0;font-weight:500}
+.report-divider{height:1px;background:rgba(255,255,255,.07);margin:1.5rem 0}
+.rep-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:1rem 0}
+.rep-stat{background:#1e2128;border-radius:8px;padding:12px;text-align:center;border:1px solid rgba(255,255,255,.07)}
+.rv{font-family:'DM Mono',monospace;font-size:22px;color:#fff}.rl{font-size:10px;color:#7a7f8e;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.rep-table{width:100%;border-collapse:collapse;font-size:13px;margin:.75rem 0}
+.rep-table th{text-align:left;padding:7px 10px;color:#7a7f8e;border-bottom:1px solid rgba(255,255,255,.07);font-family:'DM Mono',monospace;font-size:11px}
+.rep-table td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.07);color:#e8eaf0}
+.highlight-box{background:rgba(91,138,240,.07);border:1px solid rgba(91,138,240,.18);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0;font-size:14px}
+.warn-box{background:rgba(255,179,71,.07);border:1px solid rgba(255,179,71,.2);border-radius:10px;padding:1rem 1.25rem;margin:1rem 0;font-size:14px}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-family:'DM Mono',monospace}
+.b-done{background:rgba(61,255,160,.12);color:#3dffa0}.b-prog{background:rgba(91,138,240,.12);color:#5b8af0}
+.b-todo{background:rgba(255,255,255,.05);color:#7a7f8e}.b-bug{background:rgba(255,107,107,.12);color:#ff6b6b}
+</style></head><body><div class="wrap">${body}</div></body></html>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = sprint.replace(/\s+/g, '-').toLowerCase() + '-report.html';
+  a.click();
+}
+</script>
+</body>
+</html>
