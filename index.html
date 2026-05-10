@@ -47,18 +47,7 @@
   .step-dot.active { border-color: var(--accent); color: var(--accent); background: rgba(91,138,240,0.08); }
   .step-dot.done { border-color: var(--accent2); color: var(--accent2); background: rgba(61,255,160,0.06); }
 
-  /* backend url banner */
-  .backend-bar {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--surface); border: 1px solid var(--border2);
-    border-radius: 10px; padding: 10px 14px; margin-bottom: 1.5rem;
-  }
-  .backend-bar label { font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .backend-bar input { flex: 1; background: transparent; border: none; outline: none; font-family: var(--font-mono); font-size: 13px; color: var(--text); padding: 0; }
-  .backend-status { font-size: 11px; font-family: var(--font-mono); white-space: nowrap; }
-  .s-ok  { color: var(--accent2); }
-  .s-err { color: var(--danger); }
-  .s-chk { color: var(--muted); }
+
 
   /* upload */
   .upload-zone { border: 1.5px dashed var(--border2); border-radius: 16px; padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
@@ -168,7 +157,7 @@
   @media print {
     body { background: #fff; color: #111; }
     body::before, .upload-zone, .steps, .section-label, .gen-btn,
-    .report-toolbar, #configSection, .footer, .backend-bar { display: none !important; }
+    .report-toolbar, #configSection, .footer { display: none !important; }
     .report-card { border: none; background: transparent; }
   }
 </style>
@@ -188,13 +177,7 @@
     <div class="step-dot" id="dot3">03 · generate</div>
   </div>
 
-  <!-- Backend URL bar -->
-  <div class="backend-bar">
-    <label>Backend URL</label>
-    <input type="text" id="backendUrl" placeholder="https://your-app.onrender.com" oninput="saveBackendUrl()" />
-    <span class="backend-status s-chk" id="backendStatus">not checked</span>
-    <button class="tb-btn" onclick="checkBackend()" style="padding:4px 12px;font-size:12px">ping</button>
-  </div>
+
 
   <!-- Upload -->
   <div class="upload-zone" id="dropzone" onclick="document.getElementById('fileInput').click()">
@@ -268,34 +251,13 @@
 let parsedData = [];
 let detectedCols = {};
 
-// restore saved backend url
-window.addEventListener('load', () => {
-  const saved = localStorage.getItem('sprint_backend_url');
-  if (saved) document.getElementById('backendUrl').value = saved;
+const BACKEND_URL = 'https://sprint-report-backend.onrender.com';
 
+window.addEventListener('load', () => {
   document.querySelectorAll('.check-item input').forEach(cb => {
     cb.addEventListener('change', () => cb.closest('.check-item').classList.toggle('checked', cb.checked));
   });
 });
-
-function saveBackendUrl() {
-  localStorage.setItem('sprint_backend_url', document.getElementById('backendUrl').value.trim());
-}
-
-async function checkBackend() {
-  const url = document.getElementById('backendUrl').value.trim();
-  const el = document.getElementById('backendStatus');
-  if (!url) { el.textContent = 'enter url first'; el.className = 'backend-status s-err'; return; }
-  el.textContent = 'checking...'; el.className = 'backend-status s-chk';
-  try {
-    const res = await fetch(url.replace(/\/$/, '') + '/');
-    const data = await res.json();
-    if (data.status === 'ok') { el.textContent = '● connected'; el.className = 'backend-status s-ok'; }
-    else { el.textContent = '✕ unexpected response'; el.className = 'backend-status s-err'; }
-  } catch {
-    el.textContent = '✕ unreachable'; el.className = 'backend-status s-err';
-  }
-}
 
 // drag drop
 const dz = document.getElementById('dropzone');
@@ -419,8 +381,7 @@ function getSections() {
 }
 
 async function generateReport() {
-  const backendUrl = document.getElementById('backendUrl').value.trim().replace(/\/$/, '');
-  if (!backendUrl) { alert('Please enter your backend URL at the top.'); return; }
+  const backendUrl = BACKEND_URL;
 
   setStep(2);
   document.getElementById('configSection').style.display = 'none';
