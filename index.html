@@ -294,7 +294,19 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     const wb = XLSX.read(e.target.result, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    // Auto-detect data sheet (skip About/info sheets)
+    let ws = null;
+    for (const name of wb.SheetNames) {
+      const sheet = wb.Sheets[name];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (rows.length > 0) {
+        const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
+        if (keys.some(k => ['summary','status','issue type','type'].includes(k))) {
+          ws = sheet; break;
+        }
+      }
+    }
+    if (!ws) ws = wb.Sheets[wb.SheetNames[0]];
     parsedData = XLSX.utils.sheet_to_json(ws, { defval: '' });
     detectCols(parsedData);
     renderPreview();
@@ -313,14 +325,20 @@ function setStep(done) {
   }
 }
 
+const DONE_STATUSES = ['done','closed','resolved','released','ready for prod','ready for release'];
+const INPROG_STATUSES = ['in progress','in development','in review','in testing','uat','testing','development','review','in qa','qa'];
+
+function isDone(s) { return DONE_STATUSES.includes((s||'').toLowerCase().trim()); }
+function isInProg(s) { return INPROG_STATUSES.some(x => (s||'').toLowerCase().trim().includes(x)); }
+
 function statusBadge(s) {
-  const sl = (s||'').toLowerCase().trim();
-  if (sl === 'done') return `<span class="badge b-done">Done</span>`;
-  if (sl.includes('progress')) return `<span class="badge b-prog">In Progress</span>`;
+  if (isDone(s)) return `<span class="badge b-done">${s}</span>`;
+  if (isInProg(s)) return `<span class="badge b-prog">${s}</span>`;
   return `<span class="badge b-todo">${s||'To Do'}</span>`;
 }
 function typeBadge(t) {
-  if ((t||'').toLowerCase() === 'bug') return `<span class="badge b-bug">Bug</span>`;
+  const tl = (t||'').toLowerCase();
+  if (tl === 'bug' || tl === 'defect') return `<span class="badge b-bug">${t}</span>`;
   return `<span style="color:var(--muted);font-size:12px">${t||'—'}</span>`;
 }
 
@@ -344,10 +362,10 @@ function renderPreview() {
 
 function renderStats() {
   const total = parsedData.length;
-  const done  = parsedData.filter(r => (g(r,'status')||'').toLowerCase().trim() === 'done').length;
+  const done  = parsedData.filter(r => isDone(g(r,'status'))).length;
   const pts   = parsedData.reduce((s,r) => s+(parseFloat(g(r,'points'))||0), 0);
-  const dpts  = parsedData.filter(r => (g(r,'status')||'').toLowerCase().trim() === 'done').reduce((s,r) => s+(parseFloat(g(r,'points'))||0), 0);
-  const bugs  = parsedData.filter(r => (g(r,'type')||'').toLowerCase() === 'bug').length;
+  const dpts  = parsedData.filter(r => isDone(g(r,'status'))).reduce((s,r) => s+(parseFloat(g(r,'points'))||0), 0);
+  const bugs  = parsedData.filter(r => ['bug','defect'].includes((g(r,'type')||'').toLowerCase())).length;
   const pct   = pts ? Math.round(dpts/pts*100) : 0;
   document.getElementById('statGrid').innerHTML = `
     <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Tickets</div></div>
