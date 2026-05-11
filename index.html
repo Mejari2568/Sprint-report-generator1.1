@@ -293,21 +293,21 @@ function handleFile(file) {
   document.getElementById('reportLabel').textContent = file.name.replace(/\.[^.]+$/, '') + '-report.html';
   const reader = new FileReader();
   reader.onload = e => {
-    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true, cellNF: false, cellText: false });
     // Auto-detect data sheet (skip About/info sheets)
     let ws = null;
     for (const name of wb.SheetNames) {
       const sheet = wb.Sheets[name];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false, blankrows: false });
       if (rows.length > 0) {
-        const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
-        if (keys.some(k => ['summary','status','issue type','type'].includes(k))) {
+        const keys = Object.keys(rows[0]).map(k => k.toLowerCase().trim());
+        if (keys.some(k => ['summary','status','issue type','type','key'].includes(k))) {
           ws = sheet; break;
         }
       }
     }
     if (!ws) ws = wb.Sheets[wb.SheetNames[0]];
-    parsedData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    parsedData = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, blankrows: false });
     detectCols(parsedData);
     renderPreview();
     renderStats();
