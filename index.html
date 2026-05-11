@@ -325,8 +325,8 @@ function setStep(done) {
   }
 }
 
-const DONE_STATUSES = ['done','closed','resolved','released','ready for prod','ready for release'];
-const INPROG_STATUSES = ['in progress','in development','in review','in testing','uat','testing','development','review','in qa','qa'];
+const DONE_STATUSES = ['done','closed','resolved','released','ready for prod','ready for release','uat'];
+const INPROG_STATUSES = ['in progress','in development','in review','in testing','testing','development','review','in qa','qa'];
 
 function isDone(s) { return DONE_STATUSES.includes((s||'').toLowerCase().trim()); }
 function isInProg(s) { return INPROG_STATUSES.some(x => (s||'').toLowerCase().trim().includes(x)); }
